@@ -23,6 +23,9 @@ import (
 	"math/big"
 	"reflect"
 	"strconv"
+	"unsafe"
+
+	jsoniter "github.com/json-iterator/go"
 )
 
 var (
@@ -37,6 +40,20 @@ var (
 type Bytes []byte
 
 const hexPrefix = `0x`
+
+var hexPrefixBytes = []byte(hexPrefix)
+
+func init() {
+	jsoniter.RegisterTypeEncoder("hexutil.Bytes", &bytesCodec{})
+}
+
+type bytesCodec struct{}
+
+func (codec *bytesCodec) IsEmpty(ptr unsafe.Pointer) bool { return false }
+func (codec *bytesCodec) Encode(ptr unsafe.Pointer, stream *jsoniter.Stream) {
+	stream.Write(hexPrefixBytes)
+	stream.Write(*((*[]byte)(ptr)))
+}
 
 // MarshalText implements encoding.TextMarshaler
 func (b Bytes) MarshalText() ([]byte, error) {

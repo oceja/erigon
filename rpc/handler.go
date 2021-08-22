@@ -174,7 +174,6 @@ func (h *handler) handleMsg(msg *jsonrpcMessage, stream *jsoniter.Stream) {
 		needWriteStream := false
 		if stream == nil {
 			stream = jsoniter.ConfigDefault.BorrowStream(nil)
-			//stream = jsoniter.NewStream(jsoniter.ConfigDefault, nil, 4096)
 			needWriteStream = true
 		}
 		defer jsoniter.ConfigDefault.ReturnStream(stream)
@@ -182,7 +181,6 @@ func (h *handler) handleMsg(msg *jsonrpcMessage, stream *jsoniter.Stream) {
 		answer := h.handleCallMsg(cp, msg, stream)
 		h.addSubscriptions(cp.notifiers)
 		if answer != nil {
-			//buffer, _ := json.Marshal(answer)
 			stream.WriteVal(answer)
 		}
 		if needWriteStream {
