@@ -66,8 +66,8 @@ func FindByHistory(tx kv.Tx, storage bool, key []byte, timestamp uint64) ([]byte
 	index := p.Get().(*roaring64.Bitmap)
 	index.Clear()
 	defer p.Put(index)
-
-	if _, err := index.ReadFrom(bytes.NewReader(v)); err != nil {
+	r := bytes.NewReader(v)
+	if _, err := index.ReadFrom(r); err != nil {
 		return nil, err
 	}
 	found, ok := bitmapdb.SeekInBitmap64(index, timestamp)
