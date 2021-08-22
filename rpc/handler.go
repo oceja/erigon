@@ -17,6 +17,7 @@
 package rpc
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"reflect"
@@ -26,7 +27,6 @@ import (
 	"time"
 
 	jsoniter "github.com/json-iterator/go"
-	"github.com/ledgerwatch/erigon/common"
 	"github.com/ledgerwatch/log/v3"
 )
 
@@ -102,7 +102,6 @@ func newHandler(connCtx context.Context, conn jsonWriter, idgen func() ID, reg *
 
 // handleBatch executes all messages in a batch and returns the responses.
 func (h *handler) handleBatch(msgs []*jsonrpcMessage, stream *jsoniter.Stream) {
-	defer jsoniter.ConfigDefault.ReturnStream(stream)
 	// Emit error response for empty batches:
 	if len(msgs) == 0 {
 		h.startCallProc(func(cp *callProc) {
@@ -138,13 +137,14 @@ func (h *handler) handleBatch(msgs []*jsonrpcMessage, stream *jsoniter.Stream) {
 					<-boundedConcurrency
 				}()
 
-				stream := jsoniter.ConfigDefault.BorrowStream(nil)
-				defer jsoniter.ConfigDefault.ReturnStream(stream)
+				buf := bytes.NewBuffer(nil)
+				stream := jsoniter.NewStream(jsoniter.ConfigDefault, buf, 4096)
 				if res := h.handleCallMsg(cp, calls[i], stream); res != nil {
 					answersWithNils[i] = res
 				}
-				if len(stream.Buffer()) > 0 && answersWithNils[i] == nil {
-					answersWithNils[i] = json.RawMessage(common.CopyBytes(stream.Buffer()))
+				_ = stream.Flush()
+				if buf.Len() > 0 && answersWithNils[i] == nil {
+					answersWithNils[i] = json.RawMessage(buf.Bytes())
 				}
 			}(i)
 		}
@@ -173,15 +173,14 @@ func (h *handler) handleMsg(msg *jsonrpcMessage, stream *jsoniter.Stream) {
 	h.startCallProc(func(cp *callProc) {
 		needWriteStream := false
 		if stream == nil {
-			stream = jsoniter.ConfigDefault.BorrowStream(nil)
+			stream = jsoniter.NewStream(jsoniter.ConfigDefault, nil, 4096)
 			needWriteStream = true
 		}
-		defer jsoniter.ConfigDefault.ReturnStream(stream)
-
 		answer := h.handleCallMsg(cp, msg, stream)
 		h.addSubscriptions(cp.notifiers)
 		if answer != nil {
-			stream.WriteVal(answer)
+			buffer, _ := json.Marshal(answer)
+			stream.Write(json.RawMessage(buffer))
 		}
 		if needWriteStream {
 			h.conn.writeJSON(cp.ctx, json.RawMessage(stream.Buffer()))
