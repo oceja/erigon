@@ -100,7 +100,6 @@ func (msg *jsonrpcMessage) errorResponse(err error) *jsonrpcMessage {
 }
 
 func (msg *jsonrpcMessage) response(result interface{}) *jsonrpcMessage {
-	json := jsoniter.ConfigCompatibleWithStandardLibrary
 	enc, err := json.Marshal(result)
 	if err != nil {
 		// TODO: wrap with 'internal server error'
