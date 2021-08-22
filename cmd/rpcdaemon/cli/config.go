@@ -110,6 +110,7 @@ func RootCommand() (*cobra.Command, *Flags) {
 		if err := utils.SetupCobra(cmd); err != nil {
 			return err
 		}
+
 		cfg.SingleNodeMode = cfg.Datadir != "" || cfg.Chaindata != ""
 		if cfg.SingleNodeMode {
 			if cfg.Datadir == "" {

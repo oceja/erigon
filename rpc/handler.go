@@ -17,7 +17,6 @@
 package rpc
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"reflect"
@@ -103,6 +102,7 @@ func newHandler(connCtx context.Context, conn jsonWriter, idgen func() ID, reg *
 
 // handleBatch executes all messages in a batch and returns the responses.
 func (h *handler) handleBatch(msgs []*jsonrpcMessage, stream *jsoniter.Stream) {
+	defer jsoniter.ConfigDefault.ReturnStream(stream)
 	// Emit error response for empty batches:
 	if len(msgs) == 0 {
 		h.startCallProc(func(cp *callProc) {
@@ -138,14 +138,13 @@ func (h *handler) handleBatch(msgs []*jsonrpcMessage, stream *jsoniter.Stream) {
 					<-boundedConcurrency
 				}()
 
-				buf := bytes.NewBuffer(nil)
-				stream := jsoniter.NewStream(jsoniter.ConfigDefault, buf, 4096)
+				stream := jsoniter.ConfigDefault.BorrowStream(nil)
+				defer jsoniter.ConfigDefault.ReturnStream(stream)
 				if res := h.handleCallMsg(cp, calls[i], stream); res != nil {
 					answersWithNils[i] = res
 				}
-				_ = stream.Flush()
-				if buf.Len() > 0 && answersWithNils[i] == nil {
-					answersWithNils[i] = json.RawMessage(common.CopyBytes(buf.Bytes()))
+				if len(stream.Buffer()) > 0 && answersWithNils[i] == nil {
+					answersWithNils[i] = json.RawMessage(common.CopyBytes(stream.Buffer()))
 				}
 			}(i)
 		}
@@ -174,14 +173,17 @@ func (h *handler) handleMsg(msg *jsonrpcMessage, stream *jsoniter.Stream) {
 	h.startCallProc(func(cp *callProc) {
 		needWriteStream := false
 		if stream == nil {
-			stream = jsoniter.NewStream(jsoniter.ConfigDefault, nil, 4096)
+			stream = jsoniter.ConfigDefault.BorrowStream(nil)
+			//stream = jsoniter.NewStream(jsoniter.ConfigDefault, nil, 4096)
 			needWriteStream = true
 		}
+		defer jsoniter.ConfigDefault.ReturnStream(stream)
+
 		answer := h.handleCallMsg(cp, msg, stream)
 		h.addSubscriptions(cp.notifiers)
 		if answer != nil {
-			buffer, _ := json.Marshal(answer)
-			stream.Write(json.RawMessage(buffer))
+			//buffer, _ := json.Marshal(answer)
+			stream.WriteVal(answer)
 		}
 		if needWriteStream {
 			h.conn.writeJSON(cp.ctx, json.RawMessage(stream.Buffer()))
@@ -343,14 +345,14 @@ func (h *handler) handleCallMsg(ctx *callProc, msg *jsonrpcMessage, stream *json
 		return nil
 	case msg.isCall():
 		resp := h.handleCall(ctx, msg, stream)
-		var ctx []interface{}
-		ctx = append(ctx, "method", msg.Method, "reqid", idForLog{msg.ID}, "t", time.Since(start))
 		if resp != nil && resp.Error != nil {
-			ctx = append(ctx, "err", resp.Error.Message)
 			if resp.Error.Data != nil {
-				ctx = append(ctx, "errdata", resp.Error.Data)
+				h.log.Warn("Served", "method", msg.Method, "reqid", idForLog{msg.ID}, "t", time.Since(start),
+					"err", resp.Error.Message, "errdata", resp.Error.Data)
+			} else {
+				h.log.Warn("Served", "method", msg.Method, "reqid", idForLog{msg.ID}, "t", time.Since(start),
+					"err", resp.Error.Message)
 			}
-			h.log.Warn("Served", ctx...)
 		}
 		h.log.Debug("Served", "t", time.Since(start), "method", msg.Method, "reqid", idForLog{msg.ID}, "params", string(msg.Params))
 		return resp
