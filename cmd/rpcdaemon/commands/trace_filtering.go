@@ -265,6 +265,7 @@ func (api *TraceAPIImpl) Filter(ctx context.Context, req TraceFilterRequest, str
 		stream.WriteNil()
 		return err
 	}
+
 	var stdlibCompatibleJson = jsoniter.ConfigCompatibleWithStandardLibrary.BorrowStream(stream)
 	defer jsoniter.ConfigCompatibleWithStandardLibrary.ReturnStream(stdlibCompatibleJson)
 
@@ -330,6 +331,7 @@ func (api *TraceAPIImpl) Filter(ctx context.Context, req TraceFilterRequest, str
 							stream.WriteMore()
 						}
 						stdlibCompatibleJson.WriteVal(pt)
+						stdlibCompatibleJson.Flush()
 						nExported++
 					}
 				}
@@ -357,6 +359,7 @@ func (api *TraceAPIImpl) Filter(ctx context.Context, req TraceFilterRequest, str
 					stream.WriteMore()
 				}
 				stdlibCompatibleJson.WriteVal(tr)
+				stdlibCompatibleJson.Flush()
 				nExported++
 			}
 		}
@@ -383,6 +386,7 @@ func (api *TraceAPIImpl) Filter(ctx context.Context, req TraceFilterRequest, str
 							stream.WriteMore()
 						}
 						stdlibCompatibleJson.WriteVal(tr)
+						stdlibCompatibleJson.Flush()
 						nExported++
 					}
 				}
