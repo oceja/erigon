@@ -63,9 +63,7 @@ func FindByHistory(tx kv.Tx, storage bool, key []byte, timestamp uint64) ([]byte
 			return nil, ethdb.ErrKeyNotFound
 		}
 	}
-	index := p.Get().(*roaring64.Bitmap)
-	index.Clear()
-	defer p.Put(index)
+	index := roaring64.New()
 	r := bytes.NewReader(v)
 	if _, err := index.ReadFrom(r); err != nil {
 		return nil, err
