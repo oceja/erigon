@@ -310,6 +310,5 @@ func SeekInBitmap64(m *roaring64.Bitmap, n uint64) (found uint64, ok bool) {
 	if m.IsEmpty() {
 		return 0, false
 	}
-	x := m.Minimum()
-	return x, x != 0
+	return m.Minimum(), true
 }
