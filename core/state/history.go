@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"sync"
 
 	"github.com/RoaringBitmap/roaring/roaring64"
 	"github.com/ledgerwatch/erigon-lib/kv"
@@ -25,6 +26,10 @@ func GetAsOf(tx kv.Tx, storage bool, key []byte, timestamp uint64) ([]byte, erro
 		return nil, err
 	}
 	return tx.GetOne(kv.PlainState, key)
+}
+
+var p = sync.Pool{
+	New: func() interface{} { return roaring64.New() },
 }
 
 func FindByHistory(tx kv.Tx, storage bool, key []byte, timestamp uint64) ([]byte, error) {
@@ -58,7 +63,10 @@ func FindByHistory(tx kv.Tx, storage bool, key []byte, timestamp uint64) ([]byte
 			return nil, ethdb.ErrKeyNotFound
 		}
 	}
-	index := roaring64.New()
+	index := p.Get().(*roaring64.Bitmap)
+	index.Clear()
+	defer p.Put(index)
+
 	if _, err := index.ReadFrom(bytes.NewReader(v)); err != nil {
 		return nil, err
 	}
@@ -101,7 +109,8 @@ func FindByHistory(tx kv.Tx, storage bool, key []byte, timestamp uint64) ([]byte
 				return nil, err
 			}
 			if len(codeHash) > 0 {
-				acc.CodeHash = common.BytesToHash(codeHash)
+				acc.CodeHash.SetBytes(codeHash)
+				//acc.CodeHash = common.BytesToHash(codeHash)
 			}
 			data = make([]byte, acc.EncodingLengthForStorage())
 			acc.EncodeForStorage(data)
